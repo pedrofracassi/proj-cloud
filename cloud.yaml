@@ -9,20 +9,24 @@ Resources:
       CidrBlock: 10.0.0.0/16
       EnableDnsSupport: true
       EnableDnsHostnames: true
+      Tags: 
+      - Key: "aluno"
+        Value: "pedrolfa"
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
-
-  AttachGateway:
-    Type: AWS::EC2::VPCGatewayAttachment
     Properties:
-      VpcId: !Ref VPC
-      InternetGatewayId: !Ref InternetGateway
+      Tags: 
+        - Key: "aluno"
+          Value: "pedrolfa"
 
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref VPC
+      Tags: 
+        - Key: "aluno"
+          Value: "pedrolfa"
 
   PublicRoute:
     Type: AWS::EC2::Route
@@ -31,6 +35,12 @@ Resources:
       RouteTableId: !Ref PublicRouteTable
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref InternetGateway
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
 
   # O ALB requer pelo menos duas subnets públicas.
   # Usei o !GetAZs para pegar as AZs disponíveis automaticamente.
@@ -44,6 +54,9 @@ Resources:
       AvailabilityZone: !Select
         - 0
         - !GetAZs
+      Tags: 
+        - Key: "aluno"
+          Value: "pedrolfa"
 
   PublicSubnet2:
     Type: AWS::EC2::Subnet
@@ -54,6 +67,9 @@ Resources:
       AvailabilityZone: !Select
         - 1
         - !GetAZs
+      Tags: 
+        - Key: "aluno"
+          Value: "pedrolfa"
 
   PublicSubnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -70,11 +86,8 @@ Resources:
   LaunchConfig:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
-      AssociatePublicIpAddress: false
-      ImageId: "ami-04b70fa74e45c3917"
-      EbsOptimized: false
-      InstanceMonitoring: false
-      InstanceType: t2.large
+      ImageId: "ami-02da9a12d66a6b8ef"
+      InstanceType: t2.micro
       IamInstanceProfile: !Ref MyInstanceProfile
       SecurityGroups:
            - !Ref EC2SecurityGroup
@@ -83,9 +96,10 @@ Resources:
           #!/bin/bash
           set -e
           sudo apt update -y
-          sudo apt install -y python3-full python3-pip git
-          git clone https://github.com/pedrofracassi/proj-cloud /home/ec2-user/app
-          cd /home/ec2-user/app
+          sudo apt install -y python3-pip
+          sudo apt install -y git
+          git clone https://github.com/pedrofracassi/proj-cloud /home/ubuntu/app
+          cd /home/ubuntu/app
           sudo pip3 install -r requirements.txt
           sudo python3 app.py &
 
@@ -118,21 +132,59 @@ Resources:
                   - dynamodb:DeleteItem
                   - dynamodb:DescribeTable
                 Resource: "*"
+      Tags: 
+        - Key: "aluno"
+          Value: "pedrolfa"
 
   AutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
       VPCZoneIdentifier: [!Ref PublicSubnet1, !Ref PublicSubnet2]
       LaunchConfigurationName: !Ref LaunchConfig
-      MinSize: 1
-      MaxSize: 3
-      DesiredCapacity: 1
+      MinSize: 2
+      MaxSize: 10
+      DesiredCapacity: 3
       TargetGroupARNs: [!Ref TargetGroup]
+      Tags: 
+        - Key: "aluno"
+          Value: "pedrolfa"
+          PropagateAtLaunch: true
+
+  CPUAlarmUp:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmActions:
+      - !Ref ScaleUpPolicy
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '3'
+      Threshold: '70'
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+      - Name: AutoScalingGroupName
+        Value: !Ref AutoScalingGroup
+
+  CPUAlarmDown:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmActions:
+      - !Ref ScaleDownPolicy
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average
+      Period: '60'
+      EvaluationPeriods: '3'
+      Threshold: '30'
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+      - Name: AutoScalingGroupName
+        Value: !Ref AutoScalingGroup
 
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: my-targets
       Port: 80
       Protocol: HTTP
       VpcId: !Ref VPC
@@ -144,6 +196,9 @@ Resources:
       HealthyThresholdCount: 5
       UnhealthyThresholdCount: 2
       TargetType: instance
+      Tags: 
+        - Key: "aluno"
+          Value: "pedrolfa"
 
   ScaleUpPolicy:
     Type: 'AWS::AutoScaling::ScalingPolicy'
@@ -166,7 +221,7 @@ Resources:
   ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow HTTP traffic to ALB
+      GroupDescription: ALB
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -181,7 +236,7 @@ Resources:
   EC2SecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow EC2 instances to connect to DynamoDB
+      GroupDescription: EC2
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: "tcp"
@@ -192,12 +247,10 @@ Resources:
           FromPort: 443
           ToPort: 443
           CidrIp: 0.0.0.0/0
-
-  DynamoDBSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Allow traffic only from EC2 instances in the VPC
-      VpcId: !Ref VPC
+        - IpProtocol: "tcp"
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 18.206.107.24/29
 
   CounterTable:
     Type: "AWS::DynamoDB::Table"
@@ -212,6 +265,9 @@ Resources:
       ProvisionedThroughput:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
+      Tags: 
+        - Key: "aluno"
+          Value: "pedrolfa"
 
   ALB:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
@@ -222,6 +278,9 @@ Resources:
         - !Ref PublicSubnet2
       SecurityGroups:
         - !Ref ALBSecurityGroup
+      Tags: 
+        - Key: "aluno"
+          Value: "pedrolfa"
 
   Listener:
     Type: 'AWS::ElasticLoadBalancingV2::Listener'
@@ -234,21 +293,6 @@ Resources:
       Protocol: HTTP
 
 Outputs:
-  VPCId:
-    Description: "VPC ID"
-    Value: !Ref VPC
-  PublicSubnetOneId:
-    Description: "ID of the first public subnet"
-    Value: !Ref PublicSubnet1
-  PublicSubnetTwoId:
-    Description: "ID of the second public subnet"
-    Value: !Ref PublicSubnet2
-  AutoScalingGroupName:
-    Description: "Name of the Auto Scaling Group"
-    Value: !Ref AutoScalingGroup
   ALBDNSName:
-    Description: "DNS Name of the ALB"
+    Description: "DNS do ALB"
     Value: !GetAtt ALB.DNSName
-  DynamoDBTableName:
-    Description: "Name of the DynamoDB Table"
-    Value: !Ref CounterTable
