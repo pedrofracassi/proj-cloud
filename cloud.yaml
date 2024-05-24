@@ -138,7 +138,7 @@ Resources:
       VpcId: !Ref VPC
       HealthCheckProtocol: HTTP
       HealthCheckPort: '80'
-      HealthCheckPath: /
+      HealthCheckPath: /healthcheck
       HealthCheckIntervalSeconds: 30
       HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 5
@@ -209,6 +209,15 @@ Resources:
         - Key: idle_timeout.timeout_seconds
           Value: '60'
 
+  Listener:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+      LoadBalancerArn: !Ref ALB
+      Port: 80
+      Protocol: HTTP
 
 Outputs:
   VPCId:

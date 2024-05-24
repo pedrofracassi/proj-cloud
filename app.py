@@ -1,15 +1,10 @@
 import boto3
-import logging
 from fastapi import FastAPI
 import uvicorn
 
 # Initialize DynamoDB
 dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
 table = dynamodb.Table('CounterTable')
-
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger()
 
 app = FastAPI()
 
