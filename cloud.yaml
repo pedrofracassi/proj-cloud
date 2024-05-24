@@ -71,11 +71,13 @@ Resources:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
       AssociatePublicIpAddress: false
-      ImageId: ami-04b70fa74e45c3917
+      ImageId: "ami-04b70fa74e45c3917"
       EbsOptimized: false
       InstanceMonitoring: false
       InstanceType: t2.large
       IamInstanceProfile: !Ref MyInstanceProfile
+      SecurityGroups:
+           - !Ref EC2SecurityGroup
       UserData:
         Fn::Base64: |
           #!/bin/bash
@@ -126,8 +128,6 @@ Resources:
       MaxSize: 3
       DesiredCapacity: 1
       TargetGroupARNs: [!Ref TargetGroup]
-      HealthCheckType: EC2
-      HealthCheckGracePeriod: 300
 
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -145,6 +145,24 @@ Resources:
       UnhealthyThresholdCount: 2
       TargetType: instance
 
+  ScaleUpPolicy:
+    Type: 'AWS::AutoScaling::ScalingPolicy'
+    Properties:
+      AutoScalingGroupName: !Ref AutoScalingGroup
+      PolicyType: SimpleScaling
+      ScalingAdjustment: 1
+      AdjustmentType: ChangeInCapacity
+      Cooldown: 60
+
+  ScaleDownPolicy:
+    Type: 'AWS::AutoScaling::ScalingPolicy'
+    Properties:
+      AutoScalingGroupName: !Ref AutoScalingGroup
+      PolicyType: SimpleScaling
+      ScalingAdjustment: -1
+      AdjustmentType: ChangeInCapacity
+      Cooldown: 60
+
   ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -155,32 +173,31 @@ Resources:
           FromPort: 80
           ToPort: 80
           CidrIp: 0.0.0.0/0
+        - IpProtocol: "tcp"
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
 
   EC2SecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Allow EC2 instances to connect to DynamoDB
       VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: "tcp"
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: "tcp"
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
 
   DynamoDBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Allow traffic only from EC2 instances in the VPC
       VpcId: !Ref VPC
-
-  EC2ToDynamoDBIngress:
-    Type: AWS::EC2::SecurityGroupIngress
-    Properties:
-      GroupId: !Ref DynamoDBSecurityGroup
-      IpProtocol: -1
-      SourceSecurityGroupId: !Ref EC2SecurityGroup
-
-  DynamoDBToEC2Ingress:
-    Type: AWS::EC2::SecurityGroupIngress
-    Properties:
-      GroupId: !Ref EC2SecurityGroup
-      IpProtocol: -1
-      SourceSecurityGroupId: !Ref DynamoDBSecurityGroup
 
   CounterTable:
     Type: "AWS::DynamoDB::Table"
@@ -203,11 +220,8 @@ Resources:
       Subnets: 
         - !Ref PublicSubnet1
         - !Ref PublicSubnet2
-      SecurityGroups: [!Ref ALBSecurityGroup]
-      Scheme: internet-facing
-      LoadBalancerAttributes:
-        - Key: idle_timeout.timeout_seconds
-          Value: '60'
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
 
   Listener:
     Type: 'AWS::ElasticLoadBalancingV2::Listener'

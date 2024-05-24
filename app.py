@@ -11,11 +11,9 @@ app = FastAPI()
 @app.get("/healthcheck")
 async def healthcheck():
   try:
-    response = table.get_item(Key={'CounterId': 'Counter1'})
-    logger.info(response)
+    table.get_item(Key={'CounterId': 'Counter1'})
     return {"status": "ok"}
   except Exception as e:
-    logger.error(e)
     return {"status": "error"}
 
 @app.get("/")
