@@ -75,6 +75,7 @@ Resources:
       EbsOptimized: false
       InstanceMonitoring: false
       InstanceType: t2.large
+      IamInstanceProfile: !Ref MyInstanceProfile
       UserData:
         Fn::Base64: |
           #!/bin/bash
@@ -85,6 +86,36 @@ Resources:
           cd /home/ec2-user/app
           sudo pip3 install -r requirements.txt
           sudo python3 app.py &
+
+  MyInstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Roles:
+        - Ref: MyInstanceRole
+
+  MyInstanceRole:
+    Type: 'AWS::IAM::Role'
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:DescribeTable
+                Resource: "*"
 
   AutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
